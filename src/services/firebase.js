@@ -278,11 +278,17 @@ export const publishWallpaperToCloud = async (wallpaper) => {
       };
 
       const docRef = doc(db, 'wallpapers', wallpaper.id);
-      await setDoc(docRef, docPayload);
+      // Timeout after 3 seconds so slow networks never hang
+      const setDocPromise = setDoc(docRef, docPayload);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Cloud upload timeout')), 3000)
+      );
+
+      await Promise.race([setDocPromise, timeoutPromise]);
       console.log('⚡ Wallpaper published to Cloud Firestore instantly:', wallpaper.id);
       return { success: true, wallpaper: docPayload };
     } catch (e) {
-      console.error('Firestore cloud upload note:', e);
+      console.warn('Firestore cloud upload note (saved locally & optimistic):', e);
       return { success: false, error: e.message };
     }
   }

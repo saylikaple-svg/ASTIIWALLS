@@ -219,63 +219,76 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
     setIsSubmitting(true);
     if (playClickSound) playClickSound();
 
-    const parsedTags = tagsInput
-      .split(',')
-      .map((t) => t.trim().toLowerCase())
-      .filter(Boolean);
+    try {
+      const parsedTags = tagsInput
+        .split(',')
+        .map((t) => t.trim().toLowerCase())
+        .filter(Boolean);
 
-    if (parsedTags.length === 0) {
-      parsedTags.push(category.toLowerCase().replace(/\s+/g, '-'), deviceType, 'wallpaper');
+      if (parsedTags.length === 0) {
+        parsedTags.push(category.toLowerCase().replace(/\s+/g, '-'), deviceType, 'wallpaper');
+      }
+
+      const newWallpaper = {
+        id: 'custom-' + Date.now(),
+        title: title.trim(),
+        description: `Uploaded by @${currentUser?.username || 'creator'} in high resolution.`,
+        device: deviceType,
+        category: category,
+        tags: parsedTags,
+        resolution: detectedResolution || '4K Ultra HD',
+        width: deviceType === 'mobile' ? 1440 : 3840,
+        height: deviceType === 'mobile' ? 3200 : 2160,
+        aspect: deviceType === 'mobile' ? '9:16' : '16:9',
+        colors: extractedColors,
+        url: imagePreview,
+        thumbnailUrl: thumbnailPreview || imagePreview,
+        author: {
+          id: currentUser?.id || '',
+          name: currentUser?.name || 'Explorer',
+          username: currentUser?.username || 'user',
+          email: currentUser?.email || '',
+          avatar:
+            currentUser?.avatar ||
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+        },
+        likes: 1,
+        downloads: 0,
+        featured: true,
+        createdAt: new Date().toISOString().split('T')[0],
+        createdAtTimestamp: Date.now(),
+        isUserUploaded: true,
+      };
+
+      // 1. Immediately update gallery feed optimistically
+      if (onUploadSuccess) {
+        onUploadSuccess(newWallpaper);
+      }
+
+      // 2. Confetti celebration
+      confetti({
+        particleCount: 50,
+        spread: 80,
+        origin: { y: 0.5 },
+        colors: ['#F3AFCC', '#D7DD44', '#00966E', '#F09341'],
+      });
+
+      // 3. Show success notification
+      showToast(`Wallpaper "${newWallpaper.title}" published! 🚀`);
+
+      // 4. Close modal immediately (no waiting or freezing)
+      onClose();
+
+      // 5. Cloud Firestore persistence in background
+      publishWallpaperToCloud(newWallpaper).catch((err) => {
+        console.warn('Cloud sync background notice:', err);
+      });
+    } catch (err) {
+      console.error('Publish error:', err);
+      showToast('Could not complete publish. Please try again.', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const newWallpaper = {
-      id: 'custom-' + Date.now(),
-      title: title.trim(),
-      description: `Uploaded by @${currentUser?.username || 'creator'} in high resolution.`,
-      device: deviceType,
-      category: category,
-      tags: parsedTags,
-      resolution: detectedResolution || '4K Ultra HD',
-      width: deviceType === 'mobile' ? 1440 : 3840,
-      height: deviceType === 'mobile' ? 3200 : 2160,
-      aspect: deviceType === 'mobile' ? '9:16' : '16:9',
-      colors: extractedColors,
-      url: imagePreview,
-      thumbnailUrl: thumbnailPreview || imagePreview,
-      author: {
-        id: currentUser?.id || '',
-        name: currentUser?.name || 'Explorer',
-        username: currentUser?.username || 'user',
-        email: currentUser?.email || '',
-        avatar:
-          currentUser?.avatar ||
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      },
-      likes: 1,
-      downloads: 0,
-      featured: true,
-      createdAt: new Date().toISOString().split('T')[0],
-      createdAtTimestamp: Date.now(),
-      isUserUploaded: true,
-    };
-
-    // Save to Firestore and local state
-    await publishWallpaperToCloud(newWallpaper);
-
-    confetti({
-      particleCount: 50,
-      spread: 80,
-      origin: { y: 0.5 },
-      colors: ['#F3AFCC', '#D7DD44', '#00966E', '#F09341'],
-    });
-
-    if (onUploadSuccess) {
-      onUploadSuccess(newWallpaper);
-    }
-
-    showToast(`Wallpaper "${newWallpaper.title}" published for everyone! 🚀`);
-    setIsSubmitting(false);
-    onClose();
   };
 
   return (
