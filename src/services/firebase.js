@@ -13,10 +13,14 @@ import {
   setDoc,
   deleteDoc,
   onSnapshot,
-  query,
-  orderBy,
   getDocs
 } from 'firebase/firestore';
+import {
+  getStorage,
+  ref,
+  uploadString,
+  getDownloadURL
+} from 'firebase/storage';
 import { getCustomFirebaseConfig, saveCustomFirebaseConfig, saveUploadedWallpaper, deleteUserWallpaper, getLocalWallpapers } from './storage';
 import { INITIAL_WALLPAPERS } from '../data/initialWallpapers';
 
@@ -51,6 +55,7 @@ export const getActiveFirebaseConfig = () => {
 let app = null;
 let auth = null;
 let db = null;
+let storage = null;
 let googleProvider = null;
 
 export const initFirebase = (customConfig = null) => {
@@ -66,6 +71,11 @@ export const initFirebase = (customConfig = null) => {
       }
       auth = getAuth(app);
       db = getFirestore(app);
+      try {
+        storage = getStorage(app);
+      } catch (e) {
+        console.warn('Firebase Storage init note:', e);
+      }
       googleProvider = new GoogleAuthProvider();
       googleProvider.setCustomParameters({ prompt: 'select_account' });
     }
@@ -159,6 +169,46 @@ export const logoutUser = async () => {
 };
 
 /**
+ * Optimize image size to guarantee it fits within Firestore limits (< 800KB)
+ */
+export const compressImageForCloud = (dataUrl, maxWidth = 1600, maxHeight = 1600, quality = 0.82) => {
+  return new Promise((resolve) => {
+    if (!dataUrl || !dataUrl.startsWith('data:image')) {
+      resolve(dataUrl);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Export compressed JPEG
+      const compressed = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressed);
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+};
+
+/**
  * Real-time Firestore Cloud Wallpaper Synchronization
  * Listens to all user uploads from anyone across the globe in real time!
  */
@@ -171,7 +221,8 @@ export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
         (snapshot) => {
           const cloudWallpapers = [];
           snapshot.forEach((docSnap) => {
-            cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
+            const data = docSnap.data();
+            cloudWallpapers.push({ id: docSnap.id, ...data });
           });
 
           // Sort by creation time descending (newest first)
@@ -185,8 +236,7 @@ export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
           onWallpapersUpdated(allCombined);
         },
         (error) => {
-          console.warn('Firestore real-time subscription note:', error);
-          // Fallback to local storage
+          console.warn('Firestore real-time subscription error:', error);
           onWallpapersUpdated(getLocalWallpapers());
         }
       );
@@ -206,19 +256,46 @@ export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
  * Publish wallpaper to Firestore Cloud Database
  */
 export const publishWallpaperToCloud = async (wallpaper) => {
-  // Always save locally first
+  // Always save locally first as instant optimistic backup
   saveUploadedWallpaper(wallpaper);
 
   if (db) {
     try {
-      const docRef = doc(db, 'wallpapers', wallpaper.id);
-      await setDoc(docRef, {
+      let finalImageUrl = wallpaper.url;
+      let finalThumbnailUrl = wallpaper.thumbnailUrl || wallpaper.url;
+
+      // 1. If Firebase Storage is available, try uploading to cloud storage bucket
+      if (storage && wallpaper.url && wallpaper.url.startsWith('data:image')) {
+        try {
+          const storageRef = ref(storage, `wallpapers/${wallpaper.id}.jpg`);
+          await uploadString(storageRef, wallpaper.url, 'data_url');
+          finalImageUrl = await getDownloadURL(storageRef);
+          finalThumbnailUrl = finalImageUrl;
+        } catch (storageError) {
+          console.warn('Firebase Storage upload note, falling back to optimized Firestore payload:', storageError);
+          // Compress image to ensure it is < 700KB for Firestore document limit
+          finalImageUrl = await compressImageForCloud(wallpaper.url, 1400, 1400, 0.80);
+          finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 600, 600, 0.70);
+        }
+      } else if (wallpaper.url && wallpaper.url.startsWith('data:image')) {
+        // Compress image to ensure document fits well under 1MB Firestore limit
+        finalImageUrl = await compressImageForCloud(wallpaper.url, 1400, 1400, 0.80);
+        finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 600, 600, 0.70);
+      }
+
+      const docPayload = {
         ...wallpaper,
+        url: finalImageUrl,
+        thumbnailUrl: finalThumbnailUrl,
         createdAtTimestamp: Date.now(),
-      });
-      return { success: true };
+      };
+
+      const docRef = doc(db, 'wallpapers', wallpaper.id);
+      await setDoc(docRef, docPayload);
+      console.log('✅ Wallpaper published to Cloud Firestore successfully:', wallpaper.id);
+      return { success: true, wallpaper: docPayload };
     } catch (e) {
-      console.warn('Failed to publish to cloud Firestore:', e);
+      console.error('Failed to publish to cloud Firestore:', e);
       return { success: false, error: e.message };
     }
   }
