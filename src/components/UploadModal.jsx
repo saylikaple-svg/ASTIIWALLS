@@ -23,6 +23,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
   const fileInputRef = useRef(null);
 
   const [imagePreview, setImagePreview] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('90s Retro');
   const [deviceType, setDeviceType] = useState('mobile'); // 'mobile' | 'laptop' | 'both'
@@ -35,6 +36,32 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
   // Content Safety States
   const [isScanningSafety, setIsScanningSafety] = useState(false);
   const [safetyStatus, setSafetyStatus] = useState(null); // null | { isSafe: true } | { isSafe: false, reason: string }
+
+  const compressImageToDataUrl = (img, maxWidth, maxHeight, quality = 0.80) => {
+    try {
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+
+      if (width > maxWidth || height > maxHeight) {
+        if (width > height) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        } else {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      return canvas.toDataURL('image/jpeg', quality);
+    } catch (e) {
+      return img.src;
+    }
+  };
 
   const extractColorsFromImage = (imgElement) => {
     try {
@@ -116,14 +143,19 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
         if (!safetyResult.isSafe) {
           // Flagged for adult content
           setImagePreview(null);
+          setThumbnailPreview(null);
           setSafetyStatus({
             isSafe: false,
             reason: safetyResult.reason || 'Image flagged for adult or explicit content.',
           });
           showToast('Upload rejected: Adult/NSFW content detected!', 'error');
         } else {
-          // Passed safety check
-          setImagePreview(dataUrl);
+          // Passed safety check - Fast client compression for instant upload
+          const optimizedWallpaper = compressImageToDataUrl(img, 1400, 1400, 0.80);
+          const optimizedThumb = compressImageToDataUrl(img, 480, 480, 0.65);
+
+          setImagePreview(optimizedWallpaper);
+          setThumbnailPreview(optimizedThumb);
           setSafetyStatus({ isSafe: true });
 
           if (!title) {
@@ -209,7 +241,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
       aspect: deviceType === 'mobile' ? '9:16' : '16:9',
       colors: extractedColors,
       url: imagePreview,
-      thumbnailUrl: imagePreview,
+      thumbnailUrl: thumbnailPreview || imagePreview,
       author: {
         id: currentUser?.id || '',
         name: currentUser?.name || 'Explorer',
@@ -345,6 +377,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
                       onClick={(e) => {
                         e.stopPropagation();
                         setImagePreview(null);
+                        setThumbnailPreview(null);
                         setSafetyStatus(null);
                       }}
                       className="text-xs font-mono text-red-600 hover:underline font-bold cursor-pointer"

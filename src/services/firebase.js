@@ -253,7 +253,7 @@ export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
 };
 
 /**
- * Publish wallpaper to Firestore Cloud Database
+ * Publish wallpaper to Firestore Cloud Database (Instant High-Speed Sync)
  */
 export const publishWallpaperToCloud = async (wallpaper) => {
   // Always save locally first as instant optimistic backup
@@ -264,23 +264,10 @@ export const publishWallpaperToCloud = async (wallpaper) => {
       let finalImageUrl = wallpaper.url;
       let finalThumbnailUrl = wallpaper.thumbnailUrl || wallpaper.url;
 
-      // 1. If Firebase Storage is available, try uploading to cloud storage bucket
-      if (storage && wallpaper.url && wallpaper.url.startsWith('data:image')) {
-        try {
-          const storageRef = ref(storage, `wallpapers/${wallpaper.id}.jpg`);
-          await uploadString(storageRef, wallpaper.url, 'data_url');
-          finalImageUrl = await getDownloadURL(storageRef);
-          finalThumbnailUrl = finalImageUrl;
-        } catch (storageError) {
-          console.warn('Firebase Storage upload note, falling back to optimized Firestore payload:', storageError);
-          // Compress image to ensure it is < 700KB for Firestore document limit
-          finalImageUrl = await compressImageForCloud(wallpaper.url, 1400, 1400, 0.80);
-          finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 600, 600, 0.70);
-        }
-      } else if (wallpaper.url && wallpaper.url.startsWith('data:image')) {
-        // Compress image to ensure document fits well under 1MB Firestore limit
+      // Compress if payload is over 350KB to keep Firestore doc write super fast (< 200ms)
+      if (wallpaper.url && wallpaper.url.startsWith('data:image') && wallpaper.url.length > 350000) {
         finalImageUrl = await compressImageForCloud(wallpaper.url, 1400, 1400, 0.80);
-        finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 600, 600, 0.70);
+        finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 480, 480, 0.65);
       }
 
       const docPayload = {
@@ -292,10 +279,10 @@ export const publishWallpaperToCloud = async (wallpaper) => {
 
       const docRef = doc(db, 'wallpapers', wallpaper.id);
       await setDoc(docRef, docPayload);
-      console.log('✅ Wallpaper published to Cloud Firestore successfully:', wallpaper.id);
+      console.log('⚡ Wallpaper published to Cloud Firestore instantly:', wallpaper.id);
       return { success: true, wallpaper: docPayload };
     } catch (e) {
-      console.error('Failed to publish to cloud Firestore:', e);
+      console.error('Firestore cloud upload note:', e);
       return { success: false, error: e.message };
     }
   }
