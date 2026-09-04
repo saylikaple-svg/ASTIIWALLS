@@ -107,7 +107,6 @@ export const UserProfileView = ({
                 CREATOR
               </span>
             </div>
-            <p className="font-mono text-xs text-gray-600">{currentUser.email}</p>
           </div>
         </div>
 

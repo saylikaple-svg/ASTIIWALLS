@@ -186,9 +186,6 @@ export const Navbar = ({
                     <p className="font-heading font-black text-sm text-black truncate">
                       {currentUser.name}
                     </p>
-                    <p className="font-mono text-xs text-gray-600 truncate">
-                      {currentUser.email}
-                    </p>
                   </div>
 
                   <div className="space-y-1">

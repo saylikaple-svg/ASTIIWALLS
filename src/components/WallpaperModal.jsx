@@ -343,9 +343,6 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
                   <p className="font-heading font-black text-xs text-black uppercase">
                     {wallpaper.author?.name || 'AstiWalls Creator'}
                   </p>
-                  <p className="font-mono text-[11px] text-gray-600">
-                    @{wallpaper.author?.username || 'artist'}
-                  </p>
                 </div>
               </div>
 
