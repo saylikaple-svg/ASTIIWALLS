@@ -5,11 +5,12 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
-  LogOut
+  LogOut,
+  AlertTriangle
 } from 'lucide-react';
 import { WallpaperCard } from './WallpaperCard';
 import { useAuth } from '../context/AuthContext';
-import { deleteUserWallpaper } from '../services/storage';
+import { deleteWallpaperFromCloud } from '../services/firebase';
 
 export const UserProfileView = ({
   allWallpapers,
@@ -22,6 +23,7 @@ export const UserProfileView = ({
 }) => {
   const { currentUser, likedIds, logout, showToast } = useAuth();
   const [activeTab, setActiveTab] = useState('uploads'); // 'uploads' | 'likes'
+  const [deletingId, setDeletingId] = useState(null);
 
   if (!currentUser) {
     return (
@@ -34,7 +36,7 @@ export const UserProfileView = ({
         </p>
         <button
           onClick={() => onOpenAuthModal('signin')}
-          className="btn-brutal-lime px-6 py-3 rounded-xl font-heading font-black text-xs uppercase"
+          className="btn-brutal-lime px-6 py-3 rounded-xl font-heading font-black text-xs uppercase cursor-pointer"
         >
           Sign In with Google
         </button>
@@ -42,22 +44,38 @@ export const UserProfileView = ({
     );
   }
 
-  // Filter wallpapers uploaded by this user
+  // Filter wallpapers uploaded by this specific user
   const userUploads = allWallpapers.filter((wp) => {
-    if (wp.author?.username === currentUser.username) return true;
-    if (wp.isUserUploaded) return true;
+    if (wp.isUserUploaded) {
+      if (wp.author?.id && wp.author.id === currentUser.id) return true;
+      if (wp.author?.email && wp.author.email === currentUser.email) return true;
+      if (wp.author?.username && wp.author.username === currentUser.username) return true;
+      // Fallback for custom uploads created before login
+      return true;
+    }
     return false;
   });
 
   // Filter wallpapers liked by this user
   const likedWallpapers = allWallpapers.filter((wp) => likedIds.includes(wp.id));
 
-  const handleDelete = (e, wpId) => {
+  const handleDelete = async (e, wp) => {
     e.stopPropagation();
-    if (confirm('Delete this uploaded wallpaper?')) {
-      deleteUserWallpaper(wpId);
-      if (onWallpaperDeleted) onWallpaperDeleted(wpId);
-      showToast('Wallpaper deleted');
+    if (playClickSound) playClickSound();
+
+    if (window.confirm(`Are you sure you want to permanently delete "${wp.title}"?`)) {
+      setDeletingId(wp.id);
+      try {
+        await deleteWallpaperFromCloud(wp.id);
+        if (onWallpaperDeleted) {
+          onWallpaperDeleted(wp.id);
+        }
+        showToast(`"${wp.title}" was deleted permanently.`);
+      } catch {
+        showToast('Failed to delete wallpaper', 'error');
+      } finally {
+        setDeletingId(null);
+      }
     }
   };
 
@@ -69,7 +87,7 @@ export const UserProfileView = ({
           if (playClickSound) playClickSound();
           onBackToGallery();
         }}
-        className="btn-brutal bg-white hover:bg-gray-50 px-4 py-2 rounded-xl font-heading font-bold text-xs uppercase inline-flex items-center gap-2 cursor-pointer"
+        className="btn-brutal bg-white hover:bg-gray-50 px-4 py-2 rounded-xl font-heading font-bold text-xs uppercase inline-flex items-center gap-2 cursor-pointer shadow-brutal-sm"
       >
         <ArrowLeft className="w-4 h-4" />
         <span>Back to Gallery</span>
@@ -89,7 +107,7 @@ export const UserProfileView = ({
                 {currentUser.name}
               </h1>
               <span className="bg-yestalgia-lime text-black text-[10px] font-mono font-bold px-2 py-0.5 rounded border border-black shadow-sm">
-                GOOGLE VERIFIED
+                CREATOR
               </span>
             </div>
             <p className="font-mono text-xs text-gray-600">{currentUser.email}</p>
@@ -102,7 +120,7 @@ export const UserProfileView = ({
               if (playClickSound) playClickSound();
               onOpenUpload();
             }}
-            className="btn-brutal-lime flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-heading font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-brutal"
+            className="btn-brutal-lime flex-1 sm:flex-initial px-5 py-2.5 rounded-xl font-heading font-black text-xs uppercase flex items-center justify-center gap-1.5 shadow-brutal cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Upload Wallpaper</span>
@@ -114,7 +132,7 @@ export const UserProfileView = ({
               logout();
               onBackToGallery();
             }}
-            className="btn-brutal bg-white hover:bg-red-50 text-red-600 px-4 py-2.5 rounded-xl font-heading font-bold text-xs uppercase flex items-center justify-center gap-1.5"
+            className="btn-brutal bg-white hover:bg-red-50 text-red-600 px-4 py-2.5 rounded-xl font-heading font-bold text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>
@@ -162,22 +180,30 @@ export const UserProfileView = ({
             {userUploads.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 {userUploads.map((wp) => (
-                  <div key={wp.id} className="relative group">
+                  <div key={wp.id} className="relative group flex flex-col">
                     <WallpaperCard
                       wallpaper={wp}
                       onSelect={onSelectWallpaper}
-                      onOpenAuthModal={onOpenAuthModal}
+                      onNavigateSignIn={onOpenAuthModal}
                       playClickSound={playClickSound}
                     />
-                    {wp.isUserUploaded && (
+
+                    {/* Prominent Delete Option */}
+                    <div className="mt-2 flex items-center justify-between bg-red-50 border-2 border-red-400 rounded-xl px-3 py-2 shadow-sm">
+                      <span className="text-[11px] font-mono text-red-800 font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                        Manage
+                      </span>
                       <button
-                        onClick={(e) => handleDelete(e, wp.id)}
-                        className="absolute top-10 right-2.5 z-30 p-2 bg-red-600 text-white rounded-xl shadow-md hover:bg-red-700 transition-colors"
-                        title="Delete upload"
+                        onClick={(e) => handleDelete(e, wp)}
+                        disabled={deletingId === wp.id}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-heading font-black uppercase flex items-center gap-1 shadow-sm transition-all cursor-pointer"
+                        title="Delete wallpaper permanently"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{deletingId === wp.id ? 'Deleting...' : 'Delete'}</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -187,11 +213,11 @@ export const UserProfileView = ({
                   No Uploads Yet
                 </p>
                 <p className="font-body text-sm text-gray-600">
-                  Upload your high-res mobile or laptop wallpaper to see it in your portfolio.
+                  Upload your high-res mobile or laptop wallpaper to see it in your portfolio and share it with the world.
                 </p>
                 <button
                   onClick={onOpenUpload}
-                  className="btn-brutal-lime px-5 py-2.5 rounded-xl font-heading font-black text-xs uppercase"
+                  className="btn-brutal-lime px-5 py-2.5 rounded-xl font-heading font-black text-xs uppercase cursor-pointer"
                 >
                   Upload Wallpaper
                 </button>
@@ -209,7 +235,7 @@ export const UserProfileView = ({
                     key={wp.id}
                     wallpaper={wp}
                     onSelect={onSelectWallpaper}
-                    onOpenAuthModal={onOpenAuthModal}
+                    onNavigateSignIn={onOpenAuthModal}
                     playClickSound={playClickSound}
                   />
                 ))}
@@ -224,7 +250,7 @@ export const UserProfileView = ({
                 </p>
                 <button
                   onClick={onBackToGallery}
-                  className="btn-brutal-pink px-5 py-2.5 rounded-xl font-heading font-black text-xs uppercase"
+                  className="btn-brutal-pink px-5 py-2.5 rounded-xl font-heading font-black text-xs uppercase cursor-pointer"
                 >
                   Browse Wallpapers
                 </button>

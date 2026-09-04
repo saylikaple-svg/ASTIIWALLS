@@ -6,29 +6,38 @@ import {
   signOut, 
   onAuthStateChanged 
 } from 'firebase/auth';
-import { getCustomFirebaseConfig, saveCustomFirebaseConfig } from './storage';
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  getDocs
+} from 'firebase/firestore';
+import { getCustomFirebaseConfig, saveCustomFirebaseConfig, saveUploadedWallpaper, deleteUserWallpaper, getLocalWallpapers } from './storage';
+import { INITIAL_WALLPAPERS } from '../data/initialWallpapers';
 
 // Helper to get active configuration
 export const getActiveFirebaseConfig = () => {
-  // 1. Check custom configured in UI/localStorage
   const custom = getCustomFirebaseConfig();
   if (custom && custom.apiKey && custom.projectId) {
     return custom;
   }
 
-  // 2. Check Vite environment variables
   if (import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_PROJECT_ID) {
     return {
       apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
       authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
       projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
       messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
       appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
     };
   }
 
-  // 3. Default demo / placeholder config
   return {
     apiKey: "AIzaSyDummyKey_AstiWalls_94",
     authDomain: "astiwalls-wallpapers.firebaseapp.com",
@@ -41,13 +50,12 @@ export const getActiveFirebaseConfig = () => {
 
 let app = null;
 let auth = null;
+let db = null;
 let googleProvider = null;
 
 export const initFirebase = (customConfig = null) => {
   try {
     const config = customConfig || getActiveFirebaseConfig();
-    
-    // Check if real API key is configured
     const isRealKey = config.apiKey && !config.apiKey.includes('DummyKey');
 
     if (isRealKey) {
@@ -57,6 +65,7 @@ export const initFirebase = (customConfig = null) => {
         app = getApp();
       }
       auth = getAuth(app);
+      db = getFirestore(app);
       googleProvider = new GoogleAuthProvider();
       googleProvider.setCustomParameters({ prompt: 'select_account' });
     }
@@ -65,7 +74,6 @@ export const initFirebase = (customConfig = null) => {
   }
 };
 
-// Initial setup
 initFirebase();
 
 export const onAuthChange = (callback) => {
@@ -76,20 +84,19 @@ export const onAuthChange = (callback) => {
 };
 
 /**
- * Real Google Sign-In with Firebase Console Authentication
+ * Real Google Sign-In with Firebase Authentication
  */
 export const signInWithGoogle = async () => {
   const config = getActiveFirebaseConfig();
   const isRealFirebaseConfigured = config.apiKey && !config.apiKey.includes('DummyKey');
 
-  // If real Firebase Console keys are configured, perform real Google OAuth popup
   if (isRealFirebaseConfigured) {
     try {
       if (!auth) {
         initFirebase();
       }
       if (!auth || !googleProvider) {
-        throw new Error("Firebase Auth is not initialized. Please check your Firebase Console keys.");
+        throw new Error("Authentication is not ready. Please verify your settings.");
       }
 
       const result = await signInWithPopup(auth, googleProvider);
@@ -106,21 +113,17 @@ export const signInWithGoogle = async () => {
         },
       };
     } catch (error) {
-      console.error('Firebase Google Sign-In Error:', error);
+      console.error('Google Sign-In Error:', error);
 
-      // Friendly diagnostics for Firebase Console configuration
       let userFriendlyMessage = error.message;
-
       if (error.code === 'auth/unauthorized-domain') {
-        userFriendlyMessage = "Domain not authorized! In Firebase Console > Authentication > Settings > Authorized domains, add 'localhost' and your domain.";
+        userFriendlyMessage = "Domain not authorized in authentication settings.";
       } else if (error.code === 'auth/operation-not-allowed') {
-        userFriendlyMessage = "Google Sign-In is disabled! In Firebase Console > Authentication > Sign-in method, click Google and enable it.";
+        userFriendlyMessage = "Google Sign-In is currently disabled.";
       } else if (error.code === 'auth/popup-closed-by-user') {
-        userFriendlyMessage = "Google Sign-In popup was closed.";
+        userFriendlyMessage = "Sign-in popup was closed.";
       } else if (error.code === 'auth/popup-blocked') {
-        userFriendlyMessage = "Google Sign-In popup was blocked by browser. Please allow popups for this site.";
-      } else if (error.code === 'auth/invalid-api-key') {
-        userFriendlyMessage = "Invalid Firebase API key. Please check your Firebase Console project settings.";
+        userFriendlyMessage = "Sign-in popup was blocked by browser. Please allow popups.";
       }
 
       return {
@@ -130,19 +133,16 @@ export const signInWithGoogle = async () => {
       };
     }
   } else {
-    // If user hasn't added their Firebase keys yet, provide instant development login with instructions
     await new Promise((r) => setTimeout(r, 600));
     return {
       success: true,
       user: {
-        id: 'google-user-' + Date.now(),
+        id: 'user-' + Date.now(),
         name: 'Alex Vance',
         email: 'alex.vance@gmail.com',
         username: 'alex_vance',
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       },
-      isDemoMode: true,
-      note: 'To use your real Firebase Console account, add your keys to the .env file or Firebase Configuration in Settings.',
     };
   }
 };
@@ -159,8 +159,99 @@ export const logoutUser = async () => {
 };
 
 /**
- * Update and apply Firebase Console configuration dynamically
+ * Real-time Firestore Cloud Wallpaper Synchronization
+ * Listens to all user uploads from anyone across the globe in real time!
  */
+export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
+  if (db) {
+    try {
+      const q = collection(db, 'wallpapers');
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const cloudWallpapers = [];
+          snapshot.forEach((docSnap) => {
+            cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
+          });
+
+          // Sort by creation time descending (newest first)
+          cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
+
+          // Save cloud items locally
+          localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
+
+          // Combine with initial curated wallpapers (cloud uploads first)
+          const allCombined = [...cloudWallpapers, ...INITIAL_WALLPAPERS];
+          onWallpapersUpdated(allCombined);
+        },
+        (error) => {
+          console.warn('Firestore real-time subscription note:', error);
+          // Fallback to local storage
+          onWallpapersUpdated(getLocalWallpapers());
+        }
+      );
+      return unsubscribe;
+    } catch (e) {
+      console.warn('Firestore subscription fallback:', e);
+      onWallpapersUpdated(getLocalWallpapers());
+      return () => {};
+    }
+  } else {
+    onWallpapersUpdated(getLocalWallpapers());
+    return () => {};
+  }
+};
+
+/**
+ * Publish wallpaper to Firestore Cloud Database
+ */
+export const publishWallpaperToCloud = async (wallpaper) => {
+  // Always save locally first
+  saveUploadedWallpaper(wallpaper);
+
+  if (db) {
+    try {
+      const docRef = doc(db, 'wallpapers', wallpaper.id);
+      await setDoc(docRef, {
+        ...wallpaper,
+        createdAtTimestamp: Date.now(),
+      });
+      return { success: true };
+    } catch (e) {
+      console.warn('Failed to publish to cloud Firestore:', e);
+      return { success: false, error: e.message };
+    }
+  }
+  return { success: true };
+};
+
+/**
+ * Delete wallpaper from Firestore Cloud Database
+ */
+export const deleteWallpaperFromCloud = async (wallpaperId) => {
+  // Remove from local storage
+  deleteUserWallpaper(wallpaperId);
+
+  // Also remove from cloud cache
+  try {
+    const cloudSaved = JSON.parse(localStorage.getItem('astiwalls_cloud_wallpapers') || '[]');
+    const filtered = cloudSaved.filter((w) => w.id !== wallpaperId);
+    localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(filtered));
+  } catch {}
+
+  if (db) {
+    try {
+      const docRef = doc(db, 'wallpapers', wallpaperId);
+      await deleteDoc(docRef);
+      return { success: true };
+    } catch (e) {
+      console.warn('Failed to delete from Firestore:', e);
+      return { success: false, error: e.message };
+    }
+  }
+  return { success: true };
+};
+
 export const updateFirebaseConfig = (newConfig) => {
   saveCustomFirebaseConfig(newConfig);
   initFirebase(newConfig);

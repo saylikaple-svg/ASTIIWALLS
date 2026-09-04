@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { MarqueeBanner } from './components/MarqueeBanner';
 import { HeroSection } from './components/HeroSection';
@@ -12,6 +12,7 @@ import { UserProfileView } from './components/UserProfileView';
 import { Toast } from './components/Toast';
 import { useAuth } from './context/AuthContext';
 import { getAllWallpapers } from './services/storage';
+import { subscribeToCloudWallpapers } from './services/firebase';
 import { ArrowUp, Smartphone, Monitor, Upload, LogIn } from 'lucide-react';
 
 export function App() {
@@ -27,6 +28,19 @@ export function App() {
   const [selectedWallpaper, setSelectedWallpaper] = useState(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [currentView, setCurrentView] = useState('gallery'); // 'gallery' | 'profile' | 'signin'
+
+  // Real-time Cloud Synchronization for all user uploads
+  useEffect(() => {
+    const unsubscribe = subscribeToCloudWallpapers((updatedList) => {
+      if (Array.isArray(updatedList) && updatedList.length > 0) {
+        setWallpapers(updatedList);
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
 
   const playClickSound = useCallback(() => {
     try {
@@ -71,12 +85,15 @@ export function App() {
 
   // Handle uploaded wallpaper added to state
   const handleUploadSuccess = (newWallpaper) => {
-    setWallpapers((prev) => [newWallpaper, ...prev]);
+    setWallpapers((prev) => [newWallpaper, ...prev.filter((w) => w.id !== newWallpaper.id)]);
   };
 
   // Handle deleted wallpaper
   const handleWallpaperDeleted = (id) => {
     setWallpapers((prev) => prev.filter((wp) => wp.id !== id));
+    if (selectedWallpaper && selectedWallpaper.id === id) {
+      setSelectedWallpaper(null);
+    }
   };
 
   // Scroll to top
@@ -99,7 +116,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-retro-grid text-yestalgia-dark selection:bg-yestalgia-pink selection:text-black">
+    <div className="min-h-screen flex flex-col bg-retro-grid text-yestalgia-dark selection:bg-yestalgia-pink selection:text-black w-full max-w-full overflow-x-hidden">
       {/* Top Navbar */}
       <Navbar
         activeDeviceFilter={activeDeviceFilter}
@@ -115,7 +132,7 @@ export function App() {
       <MarqueeBanner />
 
       {/* Main Content View */}
-      <main className="flex-1">
+      <main className="flex-1 w-full max-w-full">
         {currentView === 'gallery' ? (
           <>
             {/* Hero Section */}
@@ -171,7 +188,7 @@ export function App() {
             allWallpapers={wallpapers}
             onSelectWallpaper={(wp) => setSelectedWallpaper(wp)}
             onOpenUpload={() => setIsUploadOpen(true)}
-            onNavigateSignIn={navigateToSignIn}
+            onOpenAuthModal={navigateToSignIn}
             onBackToGallery={() => setCurrentView('gallery')}
             playClickSound={playClickSound}
             onWallpaperDeleted={handleWallpaperDeleted}
@@ -180,7 +197,7 @@ export function App() {
       </main>
 
       {/* Clean Modern Retro Footer - AstiWalls by webxy */}
-      <footer className="bg-yestalgia-dark text-white border-t-4 border-black pt-16 pb-10 px-4 sm:px-6 mt-20 relative z-10">
+      <footer className="bg-yestalgia-dark text-white border-t-4 border-black pt-16 pb-10 px-4 sm:px-6 mt-20 relative z-10 w-full">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-10 pb-12 border-b border-zinc-800">
           {/* Col 1: Brand */}
           <div className="space-y-4 md:col-span-1">
@@ -291,6 +308,7 @@ export function App() {
           onClose={() => setSelectedWallpaper(null)}
           onNavigateSignIn={navigateToSignIn}
           onSelectTag={(tag) => setSearchQuery(tag)}
+          onWallpaperDeleted={handleWallpaperDeleted}
           playClickSound={playClickSound}
         />
       )}

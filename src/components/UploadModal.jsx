@@ -7,14 +7,13 @@ import {
   Sparkles, 
   Check,
   ShieldCheck,
-  ShieldAlert,
   AlertTriangle,
   Loader2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CATEGORIES } from '../data/initialWallpapers';
 import { useAuth } from '../context/AuthContext';
-import { saveUploadedWallpaper } from '../services/storage';
+import { publishWallpaperToCloud } from '../services/firebase';
 import { validateWallpaperUpload, scanTextForAdultContent } from '../services/contentModerator';
 
 export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }) => {
@@ -160,7 +159,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
     if (file) handleFileProcess(file);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!imagePreview) {
@@ -212,8 +211,10 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
       url: imagePreview,
       thumbnailUrl: imagePreview,
       author: {
+        id: currentUser?.id || '',
         name: currentUser?.name || 'Explorer',
         username: currentUser?.username || 'user',
+        email: currentUser?.email || '',
         avatar:
           currentUser?.avatar ||
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
@@ -222,10 +223,12 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
       downloads: 0,
       featured: true,
       createdAt: new Date().toISOString().split('T')[0],
+      createdAtTimestamp: Date.now(),
       isUserUploaded: true,
     };
 
-    saveUploadedWallpaper(newWallpaper);
+    // Save to Firestore and local state
+    await publishWallpaperToCloud(newWallpaper);
 
     confetti({
       particleCount: 50,
@@ -238,7 +241,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
       onUploadSuccess(newWallpaper);
     }
 
-    showToast(`Wallpaper "${newWallpaper.title}" published! 🚀`);
+    showToast(`Wallpaper "${newWallpaper.title}" published for everyone! 🚀`);
     setIsSubmitting(false);
     onClose();
   };
@@ -344,7 +347,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
                         setImagePreview(null);
                         setSafetyStatus(null);
                       }}
-                      className="text-xs font-mono text-red-600 hover:underline font-bold"
+                      className="text-xs font-mono text-red-600 hover:underline font-bold cursor-pointer"
                     >
                       Change image
                     </button>
@@ -427,7 +430,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
               <button
                 type="button"
                 onClick={() => setDeviceType('mobile')}
-                className={`py-3 px-3 rounded-xl border-2 border-black font-heading font-black text-xs uppercase flex flex-col items-center gap-1.5 transition-all ${
+                className={`py-3 px-3 rounded-xl border-2 border-black font-heading font-black text-xs uppercase flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                   deviceType === 'mobile'
                     ? 'bg-yestalgia-pink text-black shadow-brutal -translate-y-0.5'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -440,7 +443,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
               <button
                 type="button"
                 onClick={() => setDeviceType('laptop')}
-                className={`py-3 px-3 rounded-xl border-2 border-black font-heading font-black text-xs uppercase flex flex-col items-center gap-1.5 transition-all ${
+                className={`py-3 px-3 rounded-xl border-2 border-black font-heading font-black text-xs uppercase flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                   deviceType === 'laptop'
                     ? 'bg-yestalgia-teal text-white shadow-brutal -translate-y-0.5'
                     : 'bg-white text-gray-700 hover:bg-gray-50'
@@ -453,7 +456,7 @@ export const UploadModal = ({ isOpen, onClose, onUploadSuccess, playClickSound }
               <button
                 type="button"
                 onClick={() => setDeviceType('both')}
-                className={`py-3 px-3 rounded-xl border-2 border-black font-heading font-black text-xs uppercase flex flex-col items-center gap-1.5 transition-all ${
+                className={`py-3 px-3 rounded-xl border-2 border-black font-heading font-black text-xs uppercase flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
                   deviceType === 'both'
                     ? 'bg-yestalgia-lime text-black shadow-brutal -translate-y-0.5'
                     : 'bg-white text-gray-700 hover:bg-gray-50'

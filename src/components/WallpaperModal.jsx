@@ -8,14 +8,16 @@ import {
   Share2, 
   Check, 
   Lock,
-  LogIn
+  LogIn,
+  Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { DevicePreview } from './DevicePreview';
 import { useAuth } from '../context/AuthContext';
 import { recordDownload } from '../services/storage';
+import { deleteWallpaperFromCloud } from '../services/firebase';
 
-export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectTag, playClickSound }) => {
+export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectTag, onWallpaperDeleted, playClickSound }) => {
   if (!wallpaper) return null;
 
   const { currentUser, likedIds, toggleLike, showToast } = useAuth();
@@ -24,6 +26,7 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
   const [activeTab, setActiveTab] = useState('mockup'); // 'mockup' | 'raw'
   const [copiedColor, setCopiedColor] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -32,6 +35,32 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  const isOwner = currentUser && wallpaper.isUserUploaded && (
+    wallpaper.author?.id === currentUser.id ||
+    wallpaper.author?.email === currentUser.email ||
+    wallpaper.author?.username === currentUser.username ||
+    !wallpaper.author?.id
+  );
+
+  const handleDelete = async () => {
+    if (playClickSound) playClickSound();
+    if (window.confirm(`Are you sure you want to permanently delete "${wallpaper.title}"?`)) {
+      setIsDeleting(true);
+      try {
+        await deleteWallpaperFromCloud(wallpaper.id);
+        if (onWallpaperDeleted) {
+          onWallpaperDeleted(wallpaper.id);
+        }
+        showToast(`"${wallpaper.title}" was deleted.`);
+        onClose();
+      } catch {
+        showToast('Failed to delete wallpaper', 'error');
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
 
   const handleLike = () => {
     if (playClickSound) playClickSound();
@@ -55,7 +84,6 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
   const handleDownload = async (formatLabel, targetWidth, targetHeight) => {
     if (playClickSound) playClickSound();
 
-    // Direct to Sign-In page if not logged in
     if (!currentUser) {
       onClose();
       if (onNavigateSignIn) onNavigateSignIn();
@@ -94,7 +122,7 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
           const link = document.createElement('a');
           link.href = blobUrl;
           const cleanTitle = wallpaper.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
-          link.download = `yestalgia_${cleanTitle}_${formatLabel.toLowerCase().replace(/\s+/g, '_')}.jpg`;
+          link.download = `astiwalls_${cleanTitle}_${formatLabel.toLowerCase().replace(/\s+/g, '_')}.jpg`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -130,7 +158,7 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: wallpaper.title + ' - Yestalgia Wallpapers',
+        title: wallpaper.title + ' - AstiWalls',
         text: `Check out this 4K ${wallpaper.device} wallpaper!`,
         url: window.location.href,
       });
@@ -155,6 +183,18 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
           </div>
 
           <div className="flex items-center gap-2">
+            {isOwner && (
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-xl border border-white/20 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold font-mono"
+                title="Delete this wallpaper"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">{isDeleting ? 'Deleting...' : 'Delete'}</span>
+              </button>
+            )}
+
             <button
               onClick={handleShare}
               className="p-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl border border-white/20 transition-colors cursor-pointer"
@@ -259,7 +299,7 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
                 />
                 <div>
                   <p className="font-heading font-black text-xs text-black uppercase">
-                    {wallpaper.author?.name || 'Yestalgia Creator'}
+                    {wallpaper.author?.name || 'AstiWalls Creator'}
                   </p>
                   <p className="font-mono text-[11px] text-gray-600">
                     @{wallpaper.author?.username || 'artist'}
@@ -322,11 +362,10 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
               </div>
 
               {!currentUser ? (
-                /* Unauthenticated state: Login to unlock 4K download */
                 <div className="p-4 bg-yestalgia-lime/20 border-2 border-black rounded-2xl space-y-3 text-center">
                   <div className="flex items-center justify-center gap-2 text-xs font-heading font-black uppercase text-black">
                     <Lock className="w-4 h-4 text-black" />
-                    <span>Sign in with Google to download in 4K</span>
+                    <span>Sign in to download in 4K</span>
                   </div>
                   <button
                     onClick={() => {
@@ -336,11 +375,10 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
                     className="w-full btn-brutal-lime py-3.5 rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-brutal cursor-pointer"
                   >
                     <LogIn className="w-4 h-4" />
-                    <span>Sign In with Google to Unlock</span>
+                    <span>Sign In to Unlock 4K</span>
                   </button>
                 </div>
               ) : (
-                /* Authenticated state: Direct 4K download buttons */
                 <>
                   <button
                     onClick={() => handleDownload('Original 4K UHD')}

@@ -2,37 +2,48 @@ import { INITIAL_WALLPAPERS } from '../data/initialWallpapers';
 
 const STORAGE_KEYS = {
   WALLPAPERS: 'yestalgia_custom_wallpapers',
+  CLOUD_CACHE: 'astiwalls_cloud_wallpapers',
   LIKES: 'yestalgia_user_likes',
   DOWNLOADS: 'yestalgia_user_downloads',
   FIREBASE_CONFIG: 'yestalgia_firebase_custom_config',
-  ACTIVE_DEMO_USER: 'yestalgia_active_user',
 };
 
-// Get all wallpapers (Initial Curated + User Uploaded)
+// Get all wallpapers (Initial Curated + Cloud Cache + Local Custom)
 export const getAllWallpapers = () => {
   try {
+    const cloud = JSON.parse(localStorage.getItem(STORAGE_KEYS.CLOUD_CACHE) || '[]');
     const custom = JSON.parse(localStorage.getItem(STORAGE_KEYS.WALLPAPERS) || '[]');
-    return [...custom, ...INITIAL_WALLPAPERS];
+    
+    // Deduplicate by ID
+    const map = new Map();
+    [...cloud, ...custom, ...INITIAL_WALLPAPERS].forEach((item) => {
+      if (item && item.id && !map.has(item.id)) {
+        map.set(item.id, item);
+      }
+    });
+    return Array.from(map.values());
   } catch (e) {
-    console.error('Failed to load custom wallpapers:', e);
+    console.error('Failed to load wallpapers:', e);
     return INITIAL_WALLPAPERS;
   }
 };
 
-// Save a new uploaded wallpaper
+export const getLocalWallpapers = getAllWallpapers;
+
+// Save a new uploaded wallpaper locally
 export const saveUploadedWallpaper = (newWallpaper) => {
   try {
     const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.WALLPAPERS) || '[]');
-    const updated = [newWallpaper, ...existing];
+    const updated = [newWallpaper, ...existing.filter((w) => w.id !== newWallpaper.id)];
     localStorage.setItem(STORAGE_KEYS.WALLPAPERS, JSON.stringify(updated));
     return updated;
   } catch (e) {
-    console.error('Failed to save wallpaper:', e);
+    console.error('Failed to save wallpaper locally:', e);
     return [];
   }
 };
 
-// Delete user uploaded wallpaper
+// Delete user uploaded wallpaper locally
 export const deleteUserWallpaper = (id) => {
   try {
     const existing = JSON.parse(localStorage.getItem(STORAGE_KEYS.WALLPAPERS) || '[]');
