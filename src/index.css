@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+@theme {
+  --color-yestalgia-pink: #F3AFCC;
+  --color-yestalgia-pink-dark: #E28EAF;
+  --color-yestalgia-lime: #D7DD44;
+  --color-yestalgia-lime-light: #E8EF58;
+  --color-yestalgia-teal: #00966E;
+  --color-yestalgia-teal-light: #6EB5A2;
+  --color-yestalgia-orange: #F09341;
+  --color-yestalgia-orange-bright: #FF7A00;
+  --color-yestalgia-cyan: #8ED1FC;
+  --color-yestalgia-purple: #9B51E0;
+  --color-yestalgia-yellow: #FCB900;
+  --color-yestalgia-bg: #FAF8F3;
+  --color-yestalgia-bg-muted: #F2ECE1;
+  --color-yestalgia-dark: #121212;
+  --color-yestalgia-card: #FFFFFF;
+
+  --shadow-brutal-sm: 2px 2px 0px #121212;
+  --shadow-brutal: 4px 4px 0px #121212;
+  --shadow-brutal-md: 6px 6px 0px #121212;
+  --shadow-brutal-lg: 8px 8px 0px #121212;
+  --shadow-brutal-xl: 12px 12px 0px #121212;
+  --shadow-brutal-pink: 4px 4px 0px #F3AFCC;
+  --shadow-brutal-lime: 4px 4px 0px #D7DD44;
+  --shadow-brutal-teal: 4px 4px 0px #00966E;
+
+  --font-display: 'Syne', sans-serif;
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'Space Grotesk', monospace;
+
+  --animate-marquee: marquee 25s linear infinite;
+
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+}
+
+body {
+  background-color: #FAF8F3;
+  color: #121212;
+  overflow-x: hidden;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF8F3;
+}
+::-webkit-scrollbar-thumb {
+  background: #D7DD44;
+  border: 1px solid #121212;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F3AFCC;
+}
+
+/* Background grid */
+.bg-retro-grid {
+  background-image: linear-gradient(to right, rgba(18, 18, 18, 0.05) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(18, 18, 18, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Neo-brutalist buttons */
+.btn-brutal {
+  transition: all 0.15s ease;
+  border: 2px solid #121212;
+  box-shadow: 3px 3px 0px #121212;
+}
+.btn-brutal:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #121212;
+}
+.btn-brutal:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #121212;
+}
+
+.btn-brutal-pink {
+  background-color: #F3AFCC;
+  border: 2px solid #121212;
+  box-shadow: 3px 3px 0px #121212;
+  transition: all 0.15s ease;
+}
+.btn-brutal-pink:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #121212;
+  background-color: #f7bfd7;
+}
+.btn-brutal-pink:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #121212;
+}
+
+.btn-brutal-lime {
+  background-color: #D7DD44;
+  border: 2px solid #121212;
+  box-shadow: 3px 3px 0px #121212;
+  transition: all 0.15s ease;
+}
+.btn-brutal-lime:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #121212;
+  background-color: #e2e85a;
+}
+.btn-brutal-lime:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #121212;
+}
+
+.btn-brutal-teal {
+  background-color: #00966E;
+  color: #FFFFFF;
+  border: 2px solid #121212;
+  box-shadow: 3px 3px 0px #121212;
+  transition: all 0.15s ease;
+}
+.btn-brutal-teal:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #121212;
+  background-color: #00a87b;
+}
+.btn-brutal-teal:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #121212;
+}
+
+.border-3 {
+  border-width: 3px;
+}
+.border-4 {
+  border-width: 4px;
+}
