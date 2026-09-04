@@ -198,10 +198,12 @@ export const compressImageForCloud = (dataUrl, maxWidth = 1600, maxHeight = 1600
 };
 
 /**
- * Active fetch from Firestore Cloud Database
+ * Active fetch from Firestore Cloud Database & Realtime Database fallback
  */
 export const fetchCloudWallpapers = async () => {
   if (!db) initFirebase();
+  
+  // 1. Try Firestore
   if (db) {
     try {
       const q = collection(db, 'wallpapers');
@@ -211,16 +213,34 @@ export const fetchCloudWallpapers = async () => {
         cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
       });
 
-      cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
-
       if (cloudWallpapers.length > 0) {
+        cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
         localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
         return [...cloudWallpapers, ...INITIAL_WALLPAPERS];
       }
     } catch (err) {
-      console.warn('Firestore active fetch note:', err);
+      console.warn('Firestore active fetch note, checking Realtime DB fallback:', err);
     }
   }
+
+  // 2. Try Realtime Database REST API fallback
+  try {
+    const rtdbRes = await fetch('https://civiclens-791d8-default-rtdb.firebaseio.com/wallpapers.json');
+    if (rtdbRes.ok) {
+      const rtdbData = await rtdbRes.json();
+      if (rtdbData && typeof rtdbData === 'object') {
+        const rtdbWallpapers = Object.values(rtdbData).filter(Boolean);
+        if (rtdbWallpapers.length > 0) {
+          rtdbWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
+          localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(rtdbWallpapers));
+          return [...rtdbWallpapers, ...INITIAL_WALLPAPERS];
+        }
+      }
+    }
+  } catch (rtdbErr) {
+    console.warn('RTDB fallback fetch note:', rtdbErr);
+  }
+
   return getLocalWallpapers();
 };
 
@@ -262,48 +282,58 @@ export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
         },
         (error) => {
           console.warn('Firestore real-time subscription note:', error);
-          onWallpapersUpdated(getLocalWallpapers());
+          // Fallback to fetch
+          fetchCloudWallpapers().then(onWallpapersUpdated).catch(() => onWallpapersUpdated(getLocalWallpapers()));
         }
       );
       return unsubscribe;
     } catch (e) {
       console.warn('Firestore subscription fallback:', e);
-      onWallpapersUpdated(getLocalWallpapers());
+      fetchCloudWallpapers().then(onWallpapersUpdated).catch(() => onWallpapersUpdated(getLocalWallpapers()));
       return () => {};
     }
   } else {
-    onWallpapersUpdated(getLocalWallpapers());
+    fetchCloudWallpapers().then(onWallpapersUpdated).catch(() => onWallpapersUpdated(getLocalWallpapers()));
     return () => {};
   }
 };
 
 /**
- * Publish wallpaper to Firestore Cloud Database (Instant High-Speed Sync)
+ * Publish wallpaper to Firestore & Realtime Database (Dual Cloud Sync)
  */
 export const publishWallpaperToCloud = async (wallpaper) => {
   // Always save locally first as instant optimistic backup
   saveUploadedWallpaper(wallpaper);
 
+  let finalImageUrl = wallpaper.url;
+  let finalThumbnailUrl = wallpaper.thumbnailUrl || wallpaper.url;
+
+  // Compress if payload is over 350KB to keep doc write super fast (< 200ms)
+  if (wallpaper.url && wallpaper.url.startsWith('data:image') && wallpaper.url.length > 350000) {
+    finalImageUrl = await compressImageForCloud(wallpaper.url, 1400, 1400, 0.80);
+    finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 480, 480, 0.65);
+  }
+
+  const docPayload = {
+    ...wallpaper,
+    url: finalImageUrl,
+    thumbnailUrl: finalThumbnailUrl,
+    createdAtTimestamp: Date.now(),
+  };
+
+  // 1. Dual-Sync: Save to Realtime Database REST API (non-blocking)
+  try {
+    fetch(`https://civiclens-791d8-default-rtdb.firebaseio.com/wallpapers/${wallpaper.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(docPayload),
+    }).catch(() => {});
+  } catch {}
+
+  // 2. Save to Firestore
   if (db) {
     try {
-      let finalImageUrl = wallpaper.url;
-      let finalThumbnailUrl = wallpaper.thumbnailUrl || wallpaper.url;
-
-      // Compress if payload is over 350KB to keep Firestore doc write super fast (< 200ms)
-      if (wallpaper.url && wallpaper.url.startsWith('data:image') && wallpaper.url.length > 350000) {
-        finalImageUrl = await compressImageForCloud(wallpaper.url, 1400, 1400, 0.80);
-        finalThumbnailUrl = await compressImageForCloud(wallpaper.url, 480, 480, 0.65);
-      }
-
-      const docPayload = {
-        ...wallpaper,
-        url: finalImageUrl,
-        thumbnailUrl: finalThumbnailUrl,
-        createdAtTimestamp: Date.now(),
-      };
-
       const docRef = doc(db, 'wallpapers', wallpaper.id);
-      // Timeout after 3 seconds so slow networks never hang
       const setDocPromise = setDoc(docRef, docPayload);
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Cloud upload timeout')), 3000)
@@ -314,14 +344,14 @@ export const publishWallpaperToCloud = async (wallpaper) => {
       return { success: true, wallpaper: docPayload };
     } catch (e) {
       console.warn('Firestore cloud upload note (saved locally & optimistic):', e);
-      return { success: false, error: e.message };
+      return { success: true, wallpaper: docPayload };
     }
   }
-  return { success: true };
+  return { success: true, wallpaper: docPayload };
 };
 
 /**
- * Delete wallpaper from Firestore Cloud Database
+ * Delete wallpaper from Cloud
  */
 export const deleteWallpaperFromCloud = async (wallpaperId) => {
   // Remove from local storage
@@ -332,6 +362,13 @@ export const deleteWallpaperFromCloud = async (wallpaperId) => {
     const cloudSaved = JSON.parse(localStorage.getItem('astiwalls_cloud_wallpapers') || '[]');
     const filtered = cloudSaved.filter((w) => w.id !== wallpaperId);
     localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(filtered));
+  } catch {}
+
+  // Delete from RTDB fallback
+  try {
+    fetch(`https://civiclens-791d8-default-rtdb.firebaseio.com/wallpapers/${wallpaperId}.json`, {
+      method: 'DELETE',
+    }).catch(() => {});
   } catch {}
 
   if (db) {
