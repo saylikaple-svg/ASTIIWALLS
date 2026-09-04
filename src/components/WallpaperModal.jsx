@@ -9,7 +9,9 @@ import {
   Check, 
   Lock,
   LogIn,
-  Trash2
+  Trash2,
+  Wand2,
+  ChevronRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { DevicePreview } from './DevicePreview';
@@ -18,15 +20,18 @@ import { recordDownload } from '../services/storage';
 import { deleteWallpaperFromCloud } from '../services/firebase';
 
 export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectTag, onWallpaperDeleted, playClickSound }) => {
+
   if (!wallpaper) return null;
 
   const { currentUser, likedIds, toggleLike, showToast } = useAuth();
   const isLiked = likedIds.includes(wallpaper.id);
   const [downloadCount, setDownloadCount] = useState(wallpaper.downloads || 0);
-  const [activeTab, setActiveTab] = useState('mockup'); // 'mockup' | 'raw'
+  const [activeTab, setActiveTab] = useState('mockup');
   const [copiedColor, setCopiedColor] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showApplyGuide, setShowApplyGuide] = useState(false); // 'mobile' | 'laptop' | false
+
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -168,8 +173,120 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
     }
   };
 
+  const handleApplyWallpaper = (deviceType) => {
+    if (playClickSound) playClickSound();
+    if (!currentUser) {
+      onClose();
+      if (onNavigateSignIn) onNavigateSignIn();
+      return;
+    }
+
+    // Download the right resolution for the device
+    const isMobile = deviceType === 'mobile';
+    const targetW = isMobile ? 1080 : 1920;
+    const targetH = isMobile ? 2400 : 1080;
+    const label = isMobile ? 'Mobile' : 'Laptop';
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = wallpaper.url;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(targetW / img.width, targetH / img.height);
+      const x = (targetW - img.width * scale) / 2;
+      const y = (targetH - img.height * scale) / 2;
+      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      canvas.toBlob((blob) => {
+        if (!blob) { window.open(wallpaper.url, '_blank'); return; }
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        const cleanTitle = wallpaper.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        link.download = `astiwalls_${cleanTitle}_${label.toLowerCase()}_wallpaper.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+        recordDownload(wallpaper.id);
+        setDownloadCount(p => p + 1);
+      }, 'image/jpeg', 0.95);
+    };
+    img.onerror = () => window.open(wallpaper.url, '_blank');
+
+    // Show step-by-step guide
+    setShowApplyGuide(deviceType);
+  };
+
   return (
+    <>
+    {/* Apply Wallpaper Guide Overlay */}
+    {showApplyGuide && (
+      <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 animate-fadeIn">
+        <div className="w-full max-w-sm bg-white border-3 border-black rounded-3xl shadow-brutal-xl overflow-hidden">
+          {/* Header */}
+          <div className={`px-5 py-4 flex items-center justify-between ${showApplyGuide === 'mobile' ? 'bg-yestalgia-pink' : 'bg-yestalgia-teal'}`}>
+            <div className="flex items-center gap-2">
+              {showApplyGuide === 'mobile' ? <Smartphone className="w-5 h-5 text-black" /> : <Monitor className="w-5 h-5 text-white" />}
+              <span className={`font-heading font-black text-sm uppercase ${showApplyGuide === 'mobile' ? 'text-black' : 'text-white'}`}>
+                Set as {showApplyGuide === 'mobile' ? 'Phone' : 'Desktop'} Wallpaper
+              </span>
+            </div>
+            <button onClick={() => setShowApplyGuide(false)} className="p-1 rounded-lg hover:bg-black/10 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Steps */}
+          <div className="p-5 space-y-3">
+            <p className="font-mono text-xs text-gray-600 font-bold uppercase tracking-wider">✅ Image downloaded! Now follow these steps:</p>
+
+            {showApplyGuide === 'mobile' ? (
+              <div className="space-y-2.5">
+                {[
+                  { step: '1', text: 'Open your Photos / Gallery app' },
+                  { step: '2', text: 'Find the downloaded wallpaper' },
+                  { step: '3', text: 'Tap ⋮ Menu → "Use as Wallpaper"' },
+                  { step: '4', text: 'Choose Lock Screen, Home or Both!' },
+                ].map(({ step, text }) => (
+                  <div key={step} className="flex items-center gap-3 bg-yestalgia-pink/10 border border-black rounded-xl px-3 py-2.5">
+                    <span className="w-6 h-6 bg-yestalgia-pink border-2 border-black rounded-full flex items-center justify-center font-black text-xs flex-shrink-0">{step}</span>
+                    <span className="font-body text-sm text-black">{text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {[
+                  { step: '1', text: 'Open the downloaded image file' },
+                  { step: '2', text: 'Right-click the image' },
+                  { step: '3', text: 'Click "Set as Desktop Background"' },
+                  { step: '4', text: 'Choose Fill / Fit and apply!' },
+                ].map(({ step, text }) => (
+                  <div key={step} className="flex items-center gap-3 bg-yestalgia-teal/10 border border-black rounded-xl px-3 py-2.5">
+                    <span className="w-6 h-6 bg-yestalgia-teal border-2 border-black rounded-full flex items-center justify-center font-black text-xs text-white flex-shrink-0">{step}</span>
+                    <span className="font-body text-sm text-black">{text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowApplyGuide(false)}
+              className="w-full btn-brutal-lime py-3 rounded-xl font-heading font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 mt-2 cursor-pointer"
+            >
+              <Check className="w-4 h-4" />
+              Got It!
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 animate-fadeIn">
+
       <div className="relative w-full max-w-5xl bg-white border-3 sm:border-4 border-black rounded-2xl sm:rounded-3xl shadow-brutal-xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[92vh]">
         {/* Top Header */}
         <div className="bg-yestalgia-dark text-white px-3 sm:px-8 py-3 flex items-center justify-between border-b-3 border-black flex-shrink-0">
@@ -411,6 +528,33 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
                       <span>Mobile 9:16</span>
                     </button>
                   </div>
+
+                  {/* Apply as Wallpaper Section */}
+                  <div className="pt-2 border-t-2 border-black space-y-2">
+                    <p className="font-mono text-[11px] font-bold text-black uppercase tracking-wider flex items-center gap-1.5">
+                      <Wand2 className="w-3.5 h-3.5 text-yestalgia-teal" />
+                      Apply as Wallpaper
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleApplyWallpaper('mobile')}
+                        className="btn-brutal bg-yestalgia-pink hover:opacity-90 py-2.5 px-2.5 rounded-xl font-heading font-black text-[11px] sm:text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-brutal-sm"
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Set on Phone</span>
+                        <ChevronRight className="w-3 h-3 ml-auto" />
+                      </button>
+
+                      <button
+                        onClick={() => handleApplyWallpaper('laptop')}
+                        className="btn-brutal bg-yestalgia-teal text-white hover:opacity-90 py-2.5 px-2.5 rounded-xl font-heading font-black text-[11px] sm:text-xs uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-brutal-sm"
+                      >
+                        <Monitor className="w-3.5 h-3.5" />
+                        <span>Set on PC</span>
+                        <ChevronRight className="w-3 h-3 ml-auto" />
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -418,5 +562,7 @@ export const WallpaperModal = ({ wallpaper, onClose, onNavigateSignIn, onSelectT
         </div>
       </div>
     </div>
+    </>
   );
 };
+
