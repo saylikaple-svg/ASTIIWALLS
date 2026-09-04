@@ -44,15 +44,12 @@ export const UserProfileView = ({
     );
   }
 
-  // Filter wallpapers uploaded by this specific user
+  // Filter wallpapers uploaded by this specific user only
   const userUploads = allWallpapers.filter((wp) => {
-    if (wp.isUserUploaded) {
-      if (wp.author?.id && wp.author.id === currentUser.id) return true;
-      if (wp.author?.email && wp.author.email === currentUser.email) return true;
-      if (wp.author?.username && wp.author.username === currentUser.username) return true;
-      // Fallback for custom uploads created before login
-      return true;
-    }
+    if (!wp.isUserUploaded) return false;
+    if (!wp.author) return false;
+    if (wp.author.id && currentUser.id && wp.author.id === currentUser.id) return true;
+    if (wp.author.email && currentUser.email && wp.author.email === currentUser.email) return true;
     return false;
   });
 

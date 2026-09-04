@@ -234,7 +234,7 @@ export const Navbar = ({
       </div>
 
       {/* Mobile Device Filter */}
-      <div className="md:hidden px-3 py-2 border-t-2 border-black bg-white flex items-center justify-around gap-1.5 w-full">
+      <div className="md:hidden px-3 py-2 bg-white flex items-center justify-around gap-1.5 w-full">
         <button
           onClick={() => handleDeviceClick('all')}
           className={`flex-1 py-1.5 text-center font-heading font-black text-[11px] uppercase rounded-lg border-2 border-black transition-all ${
