@@ -38,36 +38,34 @@ export const Navbar = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-yestalgia-bg/95 backdrop-blur-md border-b-3 border-black">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 bg-yestalgia-bg/95 backdrop-blur-md border-b-3 border-black w-full max-w-full overflow-hidden">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4 w-full">
         {/* Brand Logo - AstiWalls by webxy */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 md:gap-6 flex-shrink-0">
           <button
             onClick={handleHomeClick}
-            className="flex items-center gap-3 group text-left focus:outline-none cursor-pointer"
+            className="flex items-center gap-2 sm:gap-3 group text-left focus:outline-none cursor-pointer"
           >
             {/* Logo Badge */}
-            <div className="w-10 h-10 bg-yestalgia-dark border-2 border-black rounded-xl shadow-brutal-sm group-hover:shadow-brutal transition-all flex items-center justify-center">
-              <div className="w-6 h-4 bg-yestalgia-lime border border-black rounded flex items-center justify-between px-0.5">
-                <div className="w-2 h-2 rounded-full bg-black flex items-center justify-center">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-yestalgia-dark border-2 border-black rounded-lg sm:rounded-xl shadow-brutal-sm group-hover:shadow-brutal transition-all flex items-center justify-center flex-shrink-0">
+              <div className="w-5 h-3.5 sm:w-6 sm:h-4 bg-yestalgia-lime border border-black rounded flex items-center justify-between px-0.5">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-black flex items-center justify-center">
                   <div className="w-0.5 h-0.5 rounded-full bg-yestalgia-pink"></div>
                 </div>
                 <div className="w-1 h-0.5 bg-black"></div>
-                <div className="w-2 h-2 rounded-full bg-black flex items-center justify-center">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-black flex items-center justify-center">
                   <div className="w-0.5 h-0.5 rounded-full bg-yestalgia-pink"></div>
                 </div>
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-display font-black text-xl sm:text-2xl tracking-tight text-black uppercase">
-                  AstiWalls
-                </span>
-                <span className="bg-yestalgia-pink border border-black text-[9px] font-mono font-black px-1.5 py-0.2 rounded shadow-brutal-sm">
-                  by webxy
-                </span>
-              </div>
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <span className="font-display font-black text-base sm:text-2xl tracking-tight text-black uppercase">
+                AstiWalls
+              </span>
+              <span className="hidden xs:inline-block bg-yestalgia-pink border border-black text-[8px] sm:text-[9px] font-mono font-black px-1 sm:px-1.5 py-0.2 rounded shadow-brutal-sm">
+                by webxy
+              </span>
             </div>
           </button>
 
@@ -118,7 +116,7 @@ export const Navbar = ({
         </div>
 
         {/* Right Actions: Upload & Sign-In */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
           {/* Upload Button */}
           <button
             onClick={() => {
@@ -129,9 +127,9 @@ export const Navbar = ({
                 onOpenUpload();
               }
             }}
-            className="btn-brutal-pink px-4 py-2 font-heading font-black text-xs uppercase tracking-wider flex items-center gap-1.5 rounded-xl cursor-pointer"
+            className="btn-brutal-pink px-2.5 sm:px-4 py-1.5 sm:py-2 font-heading font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl cursor-pointer"
           >
-            <Upload className="w-4 h-4" />
+            <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Upload Wallpaper</span>
             <span className="sm:hidden">Upload</span>
           </button>
@@ -144,17 +142,17 @@ export const Navbar = ({
                   if (playClickSound) playClickSound();
                   setShowProfileMenu(!showProfileMenu);
                 }}
-                className="flex items-center gap-2 p-1.5 bg-white border-2 border-black rounded-xl shadow-brutal-sm hover:shadow-brutal transition-all cursor-pointer"
+                className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 bg-white border-2 border-black rounded-lg sm:rounded-xl shadow-brutal-sm hover:shadow-brutal transition-all cursor-pointer"
               >
                 <img
                   src={currentUser.avatar}
                   alt={currentUser.name}
-                  className="w-7 h-7 rounded-lg object-cover border border-black"
+                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg object-cover border border-black"
                 />
-                <span className="font-heading font-bold text-xs text-black hidden sm:inline max-w-[100px] truncate">
+                <span className="font-heading font-bold text-xs text-black hidden md:inline max-w-[90px] truncate">
                   {currentUser.name}
                 </span>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-700" />
+                <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-700" />
               </button>
 
               {/* Profile Dropdown */}
@@ -204,20 +202,21 @@ export const Navbar = ({
                 if (playClickSound) playClickSound();
                 onNavigateSignIn();
               }}
-              className="btn-brutal-lime px-4 py-2 font-heading font-black text-xs uppercase tracking-wider flex items-center gap-2 rounded-xl cursor-pointer"
+              className="btn-brutal-lime px-2.5 sm:px-4 py-1.5 sm:py-2 font-heading font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl cursor-pointer"
             >
-              <LogIn className="w-4 h-4" />
-              <span>Google Sign-In</span>
+              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Google Sign-In</span>
+              <span className="sm:hidden">Sign In</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Mobile Device Filter */}
-      <div className="md:hidden px-4 py-2 border-t-2 border-black bg-white flex items-center justify-around gap-2">
+      <div className="md:hidden px-3 py-2 border-t-2 border-black bg-white flex items-center justify-around gap-1.5 w-full">
         <button
           onClick={() => handleDeviceClick('all')}
-          className={`flex-1 py-1.5 text-center font-heading font-black text-xs uppercase rounded-lg border-2 border-black ${
+          className={`flex-1 py-1.5 text-center font-heading font-black text-[11px] uppercase rounded-lg border-2 border-black transition-all ${
             activeDeviceFilter === 'all' && currentView === 'gallery'
               ? 'bg-yestalgia-dark text-yestalgia-lime shadow-brutal-sm'
               : 'bg-white text-black'
@@ -227,7 +226,7 @@ export const Navbar = ({
         </button>
         <button
           onClick={() => handleDeviceClick('mobile')}
-          className={`flex-1 py-1.5 text-center font-heading font-black text-xs uppercase rounded-lg border-2 border-black ${
+          className={`flex-1 py-1.5 text-center font-heading font-black text-[11px] uppercase rounded-lg border-2 border-black transition-all ${
             activeDeviceFilter === 'mobile' && currentView === 'gallery'
               ? 'bg-yestalgia-pink text-black shadow-brutal-sm'
               : 'bg-white text-black'
@@ -237,7 +236,7 @@ export const Navbar = ({
         </button>
         <button
           onClick={() => handleDeviceClick('laptop')}
-          className={`flex-1 py-1.5 text-center font-heading font-black text-xs uppercase rounded-lg border-2 border-black ${
+          className={`flex-1 py-1.5 text-center font-heading font-black text-[11px] uppercase rounded-lg border-2 border-black transition-all ${
             activeDeviceFilter === 'laptop' && currentView === 'gallery'
               ? 'bg-yestalgia-teal text-white shadow-brutal-sm'
               : 'bg-white text-black'

@@ -39,10 +39,16 @@
   }
 }
 
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
 body {
   background-color: #FAF8F3;
   color: #121212;
-  overflow-x: hidden;
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
