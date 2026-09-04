@@ -31,24 +31,13 @@ export const getActiveFirebaseConfig = () => {
     return custom;
   }
 
-  if (import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_PROJECT_ID) {
-    return {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebasestorage.app`,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-      appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
-    };
-  }
-
   return {
-    apiKey: "AIzaSyDummyKey_AstiWalls_94",
-    authDomain: "astiwalls-wallpapers.firebaseapp.com",
-    projectId: "astiwalls-wallpapers",
-    storageBucket: "astiwalls-wallpapers.appspot.com",
-    messagingSenderId: "102938475610",
-    appId: "1:102938475610:web:89abcdef0123456789",
+    apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "AIzaSyAZActSElVw2zOb-esIX1Ba6AYLTDHYKJ8",
+    authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "civiclens-791d8.firebaseapp.com",
+    projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "civiclens-791d8",
+    storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "civiclens-791d8.firebasestorage.app",
+    messagingSenderId: import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "992306878760",
+    appId: import.meta.env?.VITE_FIREBASE_APP_ID || "1:992306878760:web:4dcd136b84895d65d8d81d",
   };
 };
 
@@ -209,10 +198,46 @@ export const compressImageForCloud = (dataUrl, maxWidth = 1600, maxHeight = 1600
 };
 
 /**
+ * Active fetch from Firestore Cloud Database
+ */
+export const fetchCloudWallpapers = async () => {
+  if (!db) initFirebase();
+  if (db) {
+    try {
+      const q = collection(db, 'wallpapers');
+      const snap = await getDocs(q);
+      const cloudWallpapers = [];
+      snap.forEach((docSnap) => {
+        cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
+      });
+
+      cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
+
+      if (cloudWallpapers.length > 0) {
+        localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
+        return [...cloudWallpapers, ...INITIAL_WALLPAPERS];
+      }
+    } catch (err) {
+      console.warn('Firestore active fetch note:', err);
+    }
+  }
+  return getLocalWallpapers();
+};
+
+/**
  * Real-time Firestore Cloud Wallpaper Synchronization
  * Listens to all user uploads from anyone across the globe in real time!
  */
 export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
+  if (!db) initFirebase();
+
+  // Active initial query
+  fetchCloudWallpapers().then((list) => {
+    if (Array.isArray(list) && list.length > 0) {
+      onWallpapersUpdated(list);
+    }
+  }).catch(() => {});
+
   if (db) {
     try {
       const q = collection(db, 'wallpapers');
@@ -236,7 +261,7 @@ export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
           onWallpapersUpdated(allCombined);
         },
         (error) => {
-          console.warn('Firestore real-time subscription error:', error);
+          console.warn('Firestore real-time subscription note:', error);
           onWallpapersUpdated(getLocalWallpapers());
         }
       );
