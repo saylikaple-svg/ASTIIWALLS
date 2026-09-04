@@ -8,12 +8,11 @@ import { WallpaperGrid } from './components/WallpaperGrid';
 import { WallpaperModal } from './components/WallpaperModal';
 import { UploadModal } from './components/UploadModal';
 import { SignInPage } from './components/SignInPage';
-import { FirebaseConfigModal } from './components/FirebaseConfigModal';
 import { UserProfileView } from './components/UserProfileView';
 import { Toast } from './components/Toast';
 import { useAuth } from './context/AuthContext';
 import { getAllWallpapers } from './services/storage';
-import { ArrowUp, Smartphone, Monitor, Upload, LogIn, Key } from 'lucide-react';
+import { ArrowUp, Smartphone, Monitor, Upload, LogIn } from 'lucide-react';
 
 export function App() {
   const { currentUser, toastMessage, showToast, closeToast } = useAuth();
@@ -27,7 +26,6 @@ export function App() {
   // Modals & Views
   const [selectedWallpaper, setSelectedWallpaper] = useState(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isFirebaseConfigOpen, setIsFirebaseConfigOpen] = useState(false);
   const [currentView, setCurrentView] = useState('gallery'); // 'gallery' | 'profile' | 'signin'
 
   const playClickSound = useCallback(() => {
@@ -93,12 +91,6 @@ export function App() {
         <SignInPage
           onBack={() => setCurrentView('gallery')}
           onLoginSuccess={() => setCurrentView('gallery')}
-          onOpenFirebaseConfig={() => setIsFirebaseConfigOpen(true)}
-          playClickSound={playClickSound}
-        />
-        <FirebaseConfigModal
-          isOpen={isFirebaseConfigOpen}
-          onClose={() => setIsFirebaseConfigOpen(false)}
           playClickSound={playClickSound}
         />
         <Toast toast={toastMessage} onClose={closeToast} />
@@ -253,10 +245,10 @@ export function App() {
             </ul>
           </div>
 
-          {/* Col 3: Authentication & Settings */}
+          {/* Col 3: Authentication */}
           <div className="space-y-3">
             <h4 className="font-mono text-xs font-black text-yestalgia-lime uppercase tracking-wider">
-              Account & Setup
+              Account
             </h4>
             <ul className="space-y-2 font-body text-xs text-gray-300">
               <li>
@@ -272,17 +264,6 @@ export function App() {
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>{currentUser ? 'My Profile & Uploads' : 'Google Sign-In'}</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => {
-                    setIsFirebaseConfigOpen(true);
-                  }}
-                  className="hover:text-yestalgia-lime transition-colors cursor-pointer flex items-center gap-2 text-xs font-mono text-gray-400"
-                >
-                  <Key className="w-3.5 h-3.5" />
-                  <span>Firebase Console Setup</span>
                 </button>
               </li>
             </ul>
@@ -318,12 +299,6 @@ export function App() {
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onUploadSuccess={handleUploadSuccess}
-        playClickSound={playClickSound}
-      />
-
-      <FirebaseConfigModal
-        isOpen={isFirebaseConfigOpen}
-        onClose={() => setIsFirebaseConfigOpen(false)}
         playClickSound={playClickSound}
       />
 

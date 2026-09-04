@@ -8,19 +8,16 @@ import {
   Upload, 
   Heart, 
   ShieldCheck, 
-  Sparkles,
-  Key
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { INITIAL_WALLPAPERS } from '../data/initialWallpapers';
-import { getActiveFirebaseConfig } from '../services/firebase';
 
-export const SignInPage = ({ onBack, onLoginSuccess, onOpenFirebaseConfig, playClickSound }) => {
-  const { loginWithGoogle, authLoading, showToast } = useAuth();
+export const SignInPage = ({ onBack, onLoginSuccess, playClickSound }) => {
+  const { loginWithGoogle, authLoading } = useAuth();
   const [activeWallpaperIndex, setActiveWallpaperIndex] = useState(0);
 
   const showcaseWallpapers = INITIAL_WALLPAPERS.slice(0, 6);
-  const isCustomFirebaseSet = !getActiveFirebaseConfig().apiKey?.includes('DummyKey');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -33,9 +30,6 @@ export const SignInPage = ({ onBack, onLoginSuccess, onOpenFirebaseConfig, playC
     if (playClickSound) playClickSound();
     const res = await loginWithGoogle();
     if (res && res.success) {
-      if (res.note) {
-        showToast(res.note, 'success');
-      }
       if (onLoginSuccess) onLoginSuccess();
     }
   };
@@ -57,31 +51,13 @@ export const SignInPage = ({ onBack, onLoginSuccess, onOpenFirebaseConfig, playC
           <span>Back to Wallpapers</span>
         </button>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              if (playClickSound) playClickSound();
-              if (onOpenFirebaseConfig) onOpenFirebaseConfig();
-            }}
-            className={`px-3 py-1.5 rounded-xl border-2 border-black font-mono font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
-              isCustomFirebaseSet
-                ? 'bg-green-100 text-green-800 border-green-800 shadow-sm'
-                : 'bg-white hover:bg-yestalgia-lime text-black shadow-brutal-sm'
-            }`}
-            title="Configure Real Firebase Project"
-          >
-            <Key className="w-3.5 h-3.5" />
-            <span>{isCustomFirebaseSet ? 'Firebase: Connected' : 'Firebase Console Setup'}</span>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <span className="font-display font-black text-xl text-black uppercase tracking-tight">
-              AstiWalls
-            </span>
-            <span className="bg-yestalgia-pink text-black font-mono font-black text-[10px] px-2 py-0.5 rounded border border-black shadow-sm">
-              by webxy
-            </span>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="font-display font-black text-xl text-black uppercase tracking-tight">
+            AstiWalls
+          </span>
+          <span className="bg-yestalgia-pink text-black font-mono font-black text-[10px] px-2 py-0.5 rounded border border-black shadow-sm">
+            by webxy
+          </span>
         </div>
       </header>
 
@@ -95,7 +71,7 @@ export const SignInPage = ({ onBack, onLoginSuccess, onOpenFirebaseConfig, playC
               {/* Header Badge */}
               <div className="inline-flex items-center gap-2 bg-yestalgia-dark text-yestalgia-lime px-3 py-1 rounded-full font-mono font-bold text-xs uppercase shadow-sm">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>ASTIWALLS BY WEBXY // 4K ACCESS</span>
+                <span>MEMBER ACCESS // 4K DOWNLOADS</span>
               </div>
 
               {/* Punchy Title */}
@@ -171,21 +147,9 @@ export const SignInPage = ({ onBack, onLoginSuccess, onOpenFirebaseConfig, playC
                 <span>{authLoading ? 'Signing in with Google...' : 'Continue with Google'}</span>
               </button>
 
-              <div className="flex items-center justify-between text-xs font-mono text-gray-500 pt-1">
-                <div className="flex items-center gap-1 text-green-700 font-bold">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Firebase Google Auth</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onOpenFirebaseConfig) onOpenFirebaseConfig();
-                  }}
-                  className="text-xs font-mono text-gray-600 hover:text-black underline cursor-pointer"
-                >
-                  Firebase Settings ⚙️
-                </button>
+              <div className="flex items-center justify-center gap-2 text-xs font-mono text-gray-500 text-center">
+                <ShieldCheck className="w-4 h-4 text-green-600" />
+                <span>100% Free • Secure 1-Click Google Sign-In</span>
               </div>
             </div>
           </div>
