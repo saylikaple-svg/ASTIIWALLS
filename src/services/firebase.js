@@ -198,37 +198,15 @@ export const compressImageForCloud = (dataUrl, maxWidth = 1600, maxHeight = 1600
 };
 
 /**
- * Active fetch from Firestore Cloud Database & Realtime Database fallback
+ * Active fetch from Realtime Database (primary) with Firestore fallback
  */
 export const fetchCloudWallpapers = async () => {
-  if (!db) initFirebase();
-  
-  // 1. Try Firestore
-  if (db) {
-    try {
-      const q = collection(db, 'wallpapers');
-      const snap = await getDocs(q);
-      const cloudWallpapers = [];
-      snap.forEach((docSnap) => {
-        cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
-      });
-
-      if (cloudWallpapers.length > 0) {
-        cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
-        localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
-        return [...cloudWallpapers, ...INITIAL_WALLPAPERS];
-      }
-    } catch (err) {
-      console.warn('Firestore active fetch note, checking Realtime DB fallback:', err);
-    }
-  }
-
-  // 2. Try Realtime Database REST API fallback
+  // 1. Realtime Database REST API — always works once rules are set
   try {
     const rtdbRes = await fetch('https://civiclens-791d8-default-rtdb.firebaseio.com/wallpapers.json');
     if (rtdbRes.ok) {
       const rtdbData = await rtdbRes.json();
-      if (rtdbData && typeof rtdbData === 'object') {
+      if (rtdbData && typeof rtdbData === 'object' && !Array.isArray(rtdbData)) {
         const rtdbWallpapers = Object.values(rtdbData).filter(Boolean);
         if (rtdbWallpapers.length > 0) {
           rtdbWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
@@ -238,64 +216,93 @@ export const fetchCloudWallpapers = async () => {
       }
     }
   } catch (rtdbErr) {
-    console.warn('RTDB fallback fetch note:', rtdbErr);
+    console.warn('RTDB fetch note:', rtdbErr);
+  }
+
+  // 2. Firestore fallback if RTDB empty
+  if (db) {
+    try {
+      const q = collection(db, 'wallpapers');
+      const snap = await getDocs(q);
+      const cloudWallpapers = [];
+      snap.forEach((docSnap) => {
+        cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      if (cloudWallpapers.length > 0) {
+        cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
+        localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
+        return [...cloudWallpapers, ...INITIAL_WALLPAPERS];
+      }
+    } catch (err) {
+      console.warn('Firestore fetch note:', err);
+    }
   }
 
   return getLocalWallpapers();
 };
 
 /**
- * Real-time Firestore Cloud Wallpaper Synchronization
- * Listens to all user uploads from anyone across the globe in real time!
+ * Real-time Wallpaper Sync
+ * Primary: RTDB REST polling every 6s (guaranteed cross-device sync)
+ * Secondary: Firestore onSnapshot (bonus instant push when rules allow)
  */
 export const subscribeToCloudWallpapers = (onWallpapersUpdated) => {
   if (!db) initFirebase();
 
-  // Active initial query
-  fetchCloudWallpapers().then((list) => {
-    if (Array.isArray(list) && list.length > 0) {
-      onWallpapersUpdated(list);
-    }
-  }).catch(() => {});
+  // RTDB poll function
+  const doRtdbFetch = () => {
+    fetch('https://civiclens-791d8-default-rtdb.firebaseio.com/wallpapers.json')
+      .then(r => r.json())
+      .then(rtdbData => {
+        if (rtdbData && typeof rtdbData === 'object' && !Array.isArray(rtdbData)) {
+          const wallpapers = Object.values(rtdbData).filter(Boolean);
+          if (wallpapers.length > 0) {
+            wallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
+            localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(wallpapers));
+            onWallpapersUpdated([...wallpapers, ...INITIAL_WALLPAPERS]);
+          }
+        }
+      })
+      .catch(() => {});
+  };
 
+  // Fetch immediately on load
+  doRtdbFetch();
+
+  // Poll every 6 seconds for live cross-device updates
+  const pollInterval = setInterval(doRtdbFetch, 6000);
+
+  // Also try Firestore live listener (instant if rules allow)
+  let firestoreUnsub = () => {};
   if (db) {
     try {
       const q = collection(db, 'wallpapers');
-      const unsubscribe = onSnapshot(
+      firestoreUnsub = onSnapshot(
         q,
         (snapshot) => {
           const cloudWallpapers = [];
           snapshot.forEach((docSnap) => {
-            const data = docSnap.data();
-            cloudWallpapers.push({ id: docSnap.id, ...data });
+            cloudWallpapers.push({ id: docSnap.id, ...docSnap.data() });
           });
-
-          // Sort by creation time descending (newest first)
-          cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
-
-          // Save cloud items locally
-          localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
-
-          // Combine with initial curated wallpapers (cloud uploads first)
-          const allCombined = [...cloudWallpapers, ...INITIAL_WALLPAPERS];
-          onWallpapersUpdated(allCombined);
+          if (cloudWallpapers.length > 0) {
+            cloudWallpapers.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0));
+            localStorage.setItem('astiwalls_cloud_wallpapers', JSON.stringify(cloudWallpapers));
+            onWallpapersUpdated([...cloudWallpapers, ...INITIAL_WALLPAPERS]);
+          }
         },
         (error) => {
-          console.warn('Firestore real-time subscription note:', error);
-          // Fallback to fetch
-          fetchCloudWallpapers().then(onWallpapersUpdated).catch(() => onWallpapersUpdated(getLocalWallpapers()));
+          console.warn('Firestore listener note (RTDB polling active):', error);
         }
       );
-      return unsubscribe;
     } catch (e) {
-      console.warn('Firestore subscription fallback:', e);
-      fetchCloudWallpapers().then(onWallpapersUpdated).catch(() => onWallpapersUpdated(getLocalWallpapers()));
-      return () => {};
+      console.warn('Firestore subscription note (RTDB polling active):', e);
     }
-  } else {
-    fetchCloudWallpapers().then(onWallpapersUpdated).catch(() => onWallpapersUpdated(getLocalWallpapers()));
-    return () => {};
   }
+
+  return () => {
+    clearInterval(pollInterval);
+    firestoreUnsub();
+  };
 };
 
 /**
